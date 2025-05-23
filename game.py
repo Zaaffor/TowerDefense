@@ -3,6 +3,7 @@ import math
 import random
 from sys import exit
 
+print("skucha")
 
 pygame.init()
 screen = pygame.display.set_mode((800,600))
