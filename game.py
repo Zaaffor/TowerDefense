@@ -3,8 +3,6 @@ import math
 import random
 from sys import exit
 
-print("skucha")
-
 pygame.init()
 screen = pygame.display.set_mode((800,600))
 pygame.display.set_caption("Tower Defense")
@@ -32,6 +30,17 @@ zamek_rect = pygame.Rect(300, 0, 200, 100)
 TARGET = (400, 50)
 
 przeszkody = [trawa_1_rect, trawa_2_rect, trawa_3_rect, zamek_rect]
+
+class Player:
+    def __init__(self):
+        self.gold = 10
+    
+    def portfel(self, koszt):
+        return self.gold >= koszt
+    
+    def zakup(self, koszt):
+        self.gold -= koszt
+
 
 class Enemy:
     def __init__(self, x, y, width = 25, height = 50, speed = 1):
