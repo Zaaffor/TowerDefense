@@ -31,6 +31,25 @@ TARGET = (400, 50)
 
 przeszkody = [trawa_1_rect, trawa_2_rect, trawa_3_rect, zamek_rect]
 
+sciezka_1 = [
+    (260, 450),
+    (260, 400),
+    (260, 100),
+    (400, 100),
+    (400, 50)
+]
+
+sciezka_2 = [
+    (515, 450),
+    (515, 450),
+    (515, 100),
+    (400, 100),
+    (400, 50)
+]
+
+sciezki = [sciezka_1, sciezka_2]
+
+
 class Player:
     def __init__(self):
         self.gold = 10
@@ -88,31 +107,34 @@ class Bob:
         return None
 
 class Enemy:
-    def __init__(self, x, y, hp = 30, width = 25, height = 50, speed = 1):
+    def __init__(self, x, y, hp = 30, width = 25, height = 50, speed = 1, sciezka = None):
         self.rect = pygame.Rect(x, y, width, height)
         self.speed = speed
         self.x = x
         self.y = y
         self.hp = hp
         self.max_hp = hp
+        self.path_index = 0
+        self.path = sciezka
 
-    def update(self, target_x, target_y, przeszkody):
+    def update(self):
+        if self.path_index >= len(self.path):
+            return
+        
+        target_x, target_y = self.path[self.path_index]
         dx = target_x - self.x
         dy = target_y - self.y
         distance = math.hypot(dx, dy)
 
-        dx /= distance
-        dy /= distance
-        next_x = self.x + dx * self.speed
-        next_y = self.y + dy * self.speed
-        next_rect = pygame.Rect(next_x, next_y, self.rect.width, self.rect.height)
-
-        for przeszkoda in przeszkody:
-            if next_rect.colliderect(przeszkoda):
-                next_y = self.y
-
-        self.x = next_x
-        self.y = next_y
+        if distance < self.speed:
+            self.x = target_x
+            self.y = target_y
+            self.path_index += 1
+        else:
+            dx /= distance
+            dy /= distance
+            self.x += dx * self.speed
+            self.y += dy * self.speed
 
         self.rect.topleft = (self.x, self.y)
 
@@ -176,13 +198,16 @@ while True:
     if spawned_enemies < max_enemies and czas - last_spawn >= enemy_spawn:
         x = random.randint(20, 780)
         y = random.randint(500, 550)
-        new_enemy = Enemy(x, y)
+
+        fav_path = min(sciezki, key=lambda s:math.hypot(x - s[0][0], y - s[0][1]))
+
+        new_enemy = Enemy(x, y, sciezka = fav_path)
         enemies.append(new_enemy)
         spawned_enemies += 1
         last_spawn = czas
 
     for enemy in enemies:
-        enemy.update(*TARGET, przeszkody)
+        enemy.update()
         enemy.draw(screen)
     
     for wieza in wieze:
@@ -193,6 +218,9 @@ while True:
         if enemy.zgon():
             enemies.remove(enemy)
             player.gold += 10
+
+    #for path in sciezki:
+        #pygame.draw.lines(screen, (255, 255, 0), False, path, 3) - rysowanie sciezek
 
     pygame.display.update()
     clock.tick(60)
