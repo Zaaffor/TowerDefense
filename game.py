@@ -9,23 +9,32 @@ pygame.display.set_caption("Tower Defense")
 clock = pygame.time.Clock()
 
 plansza = pygame.Surface((800,600))
-plansza.fill("Grey")
 
-trawa_1 = pygame.Surface((200,400))
-trawa_1.fill("Green")
+kostka = pygame.image.load("images/kostka.png").convert_alpha()
+kostka = pygame.transform.scale(kostka, (kostka.get_width() // 8, kostka.get_height() // 8))
+
+for x in range(0, 800, kostka.get_width()):
+   for y in range(0, 600, kostka.get_height()):
+      plansza.blit(kostka, (x, y))
+
+trawa_1 = pygame.image.load("images/grass.png").convert_alpha()
+trawa_1 = pygame.transform.scale(trawa_1, (200, 400))
 trawa_1_rect = pygame.Rect(0, 0, 200, 400)
 
-trawa_2 = pygame.Surface((200,400))
-trawa_2.fill("Green")
+trawa_2 = pygame.image.load("images/grass.png").convert_alpha()
+trawa_2 = pygame.transform.scale(trawa_2, (200, 400))
 trawa_2_rect = pygame.Rect(600, 0, 200, 400)
 
-trawa_3 = pygame.Surface((100,250))
-trawa_3.fill("Green")
+trawa_3 = pygame.image.load("images/grass.png").convert_alpha()
+trawa_3 = pygame.transform.scale(trawa_3, (100, 250))
 trawa_3_rect = pygame.Rect(350, 150, 100, 250)
 
-zamek = pygame.Surface((200,100))
-zamek.fill("Brown")
+zamek = pygame.image.load("images/castle.png").convert_alpha()
+zamek = pygame.transform.scale(zamek, (200, 100))
 zamek_rect = pygame.Rect(300, 0, 200, 100)
+
+enemy_image = pygame.image.load("images/ludziki.png").convert_alpha()
+enemy_image = pygame.transform.scale(enemy_image, (60, 60))
 
 TARGET = (400, 50)
 
@@ -116,6 +125,7 @@ class Enemy:
         self.max_hp = hp
         self.path_index = 0
         self.path = sciezka
+        self.image = enemy_image
 
     def update(self):
         if self.path_index >= len(self.path):
@@ -145,7 +155,8 @@ class Enemy:
         return self.hp <= 0
 
     def draw(self, surface):
-        pygame.draw.rect(surface, (255, 0, 0), self.rect)
+        image_rect = self.image.get_rect(center=self.rect.center)
+        surface.blit(self.image, image_rect.topleft)
 
         max_hp = self.max_hp
         b_width = self.rect.width
