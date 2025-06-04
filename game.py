@@ -36,6 +36,9 @@ zamek_rect = pygame.Rect(300, 0, 200, 100)
 enemy_image = pygame.image.load("images/ludziki.png").convert_alpha()
 enemy_image = pygame.transform.scale(enemy_image, (60, 60))
 
+tower_image = pygame.image.load("images/wieza.png").convert_alpha()
+tower_image = pygame.transform.scale(tower_image, (50, 50))
+
 TARGET = (400, 50)
 
 przeszkody = [trawa_1_rect, trawa_2_rect, trawa_3_rect, zamek_rect]
@@ -69,6 +72,16 @@ class Player:
     def zakup(self, koszt):
         self.gold -= koszt
 
+class Castle:
+    def __init__(self, hp=100):
+        self.hp = hp
+
+    def dmg(self, obrazenia):
+        self.hp -= obrazenia
+    
+    def zniszczony(self):
+        return self.hp <= 0
+
 class Tower:
     CENA = 10
     DELAY = 500
@@ -79,6 +92,8 @@ class Tower:
         self.radius = 100
         self.damage = 10
         self.last_hit = 0
+        self.image = tower_image
+        self.rect = self.image.get_rect(topleft=(x,y))
 
     def in_range(self, enemy):
         odleglosc = ((enemy.x - self.x)**2 + (enemy.y - self.y)**2) ** 0.5
@@ -102,6 +117,10 @@ class Tower:
         if closest:
             closest.take_damage(self.damage)
             self.last_hit = strzal
+    
+    def draw(self, surface):
+        surface.blit(self.image, (self.x, self.y))
+        pygame.draw.circle(surface, (0, 0, 255), (self.x + 25, self.y + 25), self.radius, 1)
 
 class Bob:
     def __init__(self, pole_do_budowy, rozmiar):
@@ -116,13 +135,14 @@ class Bob:
         return None
 
 class Enemy:
-    def __init__(self, x, y, hp = 30, width = 25, height = 50, speed = 1, sciezka = None):
+    def __init__(self, x, y, hp = 30, width = 25, height = 50, speed = 1, sciezka = None, level = 1):
         self.rect = pygame.Rect(x, y, width, height)
-        self.speed = speed
         self.x = x
         self.y = y
-        self.hp = hp
-        self.max_hp = hp
+        self.level = level
+        self.hp = hp + (level * 10)
+        self.max_hp = hp + (level * 10)
+        self.speed = speed + (level * 0.2)
         self.path_index = 0
         self.path = sciezka
         self.image = enemy_image
@@ -179,11 +199,19 @@ for i in [trawa_1_rect, trawa_2_rect, trawa_3_rect]:
 budowniczy = Bob(pola_do_budowy, rozmiar_wiezy)
 wieze = []
 
+castle = Castle()
+
 enemies = []
 enemy_spawn = 2000
 last_spawn = pygame.time.get_ticks()
 max_enemies = 10
 spawned_enemies = 0
+
+wave_timer = pygame.time.get_ticks()
+wave_interval = 10000
+
+spawn_speedup_timer = pygame.time.get_ticks()
+spawn_speedup_interval = 15000 
 
 while True:
     for event in pygame.event.get():
@@ -212,10 +240,21 @@ while True:
 
         fav_path = min(sciezki, key=lambda s:math.hypot(x - s[0][0], y - s[0][1]))
 
-        new_enemy = Enemy(x, y, sciezka = fav_path)
+        level = (spawned_enemies // 10) + 1
+        new_enemy = Enemy(x, y, sciezka = fav_path, level=level)
         enemies.append(new_enemy)
         spawned_enemies += 1
         last_spawn = czas
+
+    if czas - spawn_speedup_timer > spawn_speedup_interval:
+        enemy_spawn = max(500, enemy_spawn - 200)  
+        spawn_speedup_timer = czas
+
+    if pygame.time.get_ticks() - wave_timer > wave_interval:
+        max_enemies += 5
+        wave_timer = pygame.time.get_ticks()    
+
+    
 
     for enemy in enemies:
         enemy.update()
@@ -223,12 +262,24 @@ while True:
     
     for wieza in wieze:
         wieza.attack(enemies)
-        pygame.draw.circle(screen, (0, 0, 255), (wieza.x + 25, wieza.y + 25), 20)
+        wieza.draw(screen)
 
     for enemy in enemies[:]:
         if enemy.zgon():
             enemies.remove(enemy)
-            player.gold += 10
+            player.gold += 2
+        elif enemy.path_index >= len(enemy.path):
+            enemies.remove(enemy)
+            castle.dmg(10)
+    
+    font = pygame.font.SysFont(None, 36)
+    hp_text = font.render(f"Castle HP: {castle.hp}", True, (255, 0, 0))
+    screen.blit(hp_text, (10, 10))
+
+    if castle.zniszczony():
+        print("GAME OVER")
+        pygame.quit()
+        exit()
 
     #for path in sciezki:
         #pygame.draw.lines(screen, (255, 255, 0), False, path, 3) - rysowanie sciezek
