@@ -8,28 +8,26 @@ screen = pygame.display.set_mode((800,600))
 pygame.display.set_caption("Tower Defense")
 clock = pygame.time.Clock()
 
+
+enemy_img = pygame.image.load("ludziki.png").convert_alpha()
+grass_img = pygame.image.load("grass.png").convert()
+castle_img = pygame.image.load("castle.png").convert_alpha()
+
+
 plansza = pygame.Surface((800,600))
 plansza.fill("Grey")
 
-trawa_1 = pygame.Surface((200,400))
-trawa_1.fill("Green")
+trawa_1 = pygame.transform.scale(grass_img, (200, 400))
 trawa_1_rect = pygame.Rect(0, 0, 200, 400)
 
-trawa_2 = pygame.Surface((200,400))
-trawa_2.fill("Green")
+trawa_2 = pygame.transform.scale(grass_img, (200, 400))
 trawa_2_rect = pygame.Rect(600, 0, 200, 400)
 
-trawa_3 = pygame.Surface((100,250))
-trawa_3.fill("Green")
+trawa_3 = pygame.transform.scale(grass_img, (100, 250))
 trawa_3_rect = pygame.Rect(350, 150, 100, 250)
 
-zamek = pygame.Surface((200,100))
-zamek.fill("Brown")
-zamek_rect = pygame.Rect(300, 0, 200, 100)
-
-TARGET = (400, 50)
-
-przeszkody = [trawa_1_rect, trawa_2_rect, trawa_3_rect, zamek_rect]
+zamek = pygame.transform.scale(castle_img, (200, 100))
+zamek_rect = pygame.Rect(300, 0, 200, 100) 
 
 sciezka_1 = [
     (260, 450),
@@ -49,7 +47,6 @@ sciezka_2 = [
 
 sciezki = [sciezka_1, sciezka_2]
 
-
 class Player:
     def __init__(self):
         self.gold = 10
@@ -67,7 +64,7 @@ class Tower:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.radius = 100
+        self.radius = 115
         self.damage = 10
         self.last_hit = 0
 
@@ -106,9 +103,10 @@ class Bob:
                 return pole
         return None
 
-class Enemy:
-    def __init__(self, x, y, hp = 30, width = 25, height = 50, speed = 1, sciezka = None):
-        self.rect = pygame.Rect(x, y, width, height)
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y, hp = 30, speed = 1, sciezka = None):
+        self.image = pygame.transform.scale(enemy_img, (45,60))
+        self.rect = self.image.get_rect(topleft=(x, y))
         self.speed = speed
         self.x = x
         self.y = y
@@ -145,15 +143,10 @@ class Enemy:
         return self.hp <= 0
 
     def draw(self, surface):
-        pygame.draw.rect(surface, (255, 0, 0), self.rect)
-
-        max_hp = self.max_hp
-        b_width = self.rect.width
-        b_height = 5
-        hp_ratio = max(self.hp, 0) / max_hp
-
-        b_hp_rect = pygame.Rect(self.rect.x, self.rect.y - 10, b_width * hp_ratio, b_height)
-        pygame.draw.rect(surface, (0, 255, 0), b_hp_rect)
+        surface.blit(self.image, self.rect)
+        hp_ratio = max(self.hp, 0) / self.max_hp
+        hp_bar = pygame.Rect(self.rect.x, self.rect.y - 10, self.rect.width * hp_ratio, 5)
+        pygame.draw.rect(surface, (0, 255, 0), hp_bar)
 
 player = Player()
 
