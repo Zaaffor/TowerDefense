@@ -36,6 +36,12 @@ zamek_rect = pygame.Rect(300, 0, 200, 100)
 enemy_image = pygame.image.load("images/ludziki.png").convert_alpha()
 enemy_image = pygame.transform.scale(enemy_image, (60, 60))
 
+enemy_image2 = pygame.image.load("images/ludziki2.png").convert_alpha()
+enemy_image2 = pygame.transform.scale(enemy_image2, (60, 60))
+
+enemy_image3 = pygame.image.load("images/ludziki3.png").convert_alpha()
+enemy_image3 = pygame.transform.scale(enemy_image3, (60, 60))
+
 tower_image = pygame.image.load("images/wieza.png").convert_alpha()
 tower_image = pygame.transform.scale(tower_image, (50, 50))
 
@@ -65,12 +71,14 @@ sciezki = [sciezka_1, sciezka_2]
 class Player:
     def __init__(self):
         self.gold = 10
+        self.koszt = 10
     
-    def portfel(self, koszt):
-        return self.gold >= koszt
+    def portfel(self):
+        return self.gold >= self.koszt
     
-    def zakup(self, koszt):
-        self.gold -= koszt
+    def zakup(self):
+        self.gold -= self.koszt
+        self.koszt += 2
 
 class Castle:
     def __init__(self, hp=100):
@@ -83,13 +91,12 @@ class Castle:
         return self.hp <= 0
 
 class Tower:
-    CENA = 10
     DELAY = 500
 
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.radius = 100
+        self.radius = 120
         self.damage = 10
         self.last_hit = 0
         self.image = tower_image
@@ -135,17 +142,41 @@ class Bob:
         return None
 
 class Enemy:
-    def __init__(self, x, y, hp = 30, width = 25, height = 50, speed = 1, sciezka = None, level = 1):
+    def __init__(self, x, y, hp = 30, width = 25, height = 50, speed = 1, sciezka = None, level = 0):
         self.rect = pygame.Rect(x, y, width, height)
         self.x = x
         self.y = y
         self.level = level
-        self.hp = hp + (level * 10)
-        self.max_hp = hp + (level * 10)
-        self.speed = speed + (level * 0.2)
+
+        random_tier = random.randint(1,level)
+        print("POJAWIL SIE NOWY PRZECIWNIK")
+        print("TIER = " + str(random_tier))
+        print("OBECNY POZIOM = " + str(level))
+
+        # TIERY PRZECIWNIKOW
+        bonus_hp = 5 * (level - 1) #zwiekszanie hp
+        # TIER 3 (CZERWONY)
+        if(random_tier >= 5): # liczba porownywana do random_tier to level od ktorego zacznie spawnowac sie ten tier przeciwnika. ponizej sa jego
+           self.max_hp = hp + 30 + bonus_hp
+           self.speed = speed
+           self.image = enemy_image3
+
+        # TIER 2 (ŻÓŁTY)
+        elif(random_tier >= 3):
+           self.max_hp = hp + bonus_hp
+           self.speed = speed + 1
+           self.image = enemy_image2
+
+        #TIER 1 (NIEBIESKI)
+        else:
+           self.max_hp = hp + bonus_hp
+           self.speed = speed
+           self.image = enemy_image
+
+
+        self.hp = self.max_hp
         self.path_index = 0
         self.path = sciezka
-        self.image = enemy_image
 
     def update(self):
         if self.path_index >= len(self.path):
@@ -186,6 +217,44 @@ class Enemy:
         b_hp_rect = pygame.Rect(self.rect.x, self.rect.y - 10, b_width * hp_ratio, b_height)
         pygame.draw.rect(surface, (0, 255, 0), b_hp_rect)
 
+class WaveManagment: #klasa do fal
+    def __init__(self):
+        self.aktualna_fala = 1
+        self.enemies_to_spawn = self.enemy_count()
+        self.spawned = 0
+        self.spawn_interval = 2000
+        self.last_spawn = pygame.time.get_ticks()
+        self.last_wave = pygame.time.get_ticks()
+        self.przerwa = 5000
+        self.next_wave = False
+    
+    def enemy_count(self):
+        return 5 + (self.aktualna_fala - 1) * 2 
+    
+    def update(self):
+        teraz = pygame.time.get_ticks()
+
+        if self.spawned >= self.enemies_to_spawn:
+            if teraz - self.last_wave > self.przerwa:
+                self.next_wave = True
+        
+        if self.next_wave:
+            self.aktualna_fala += 1
+            self.enemies_to_spawn = self.enemy_count()
+            self.spawned = 0
+            self.next_wave = False
+            self.last_wave = teraz
+            self.spawn_interval = max(500, self.spawn_interval - 200)
+        
+    def should_spawn(self):
+        teraz = pygame.time.get_ticks()
+        return self.spawned < self.enemies_to_spawn and teraz - self.last_spawn >= self.spawn_interval
+    
+    def rejestr(self):
+        self.spawned += 1
+        self.last_spawn = pygame.time.get_ticks()
+
+
 player = Player()
 
 rozmiar_wiezy = 50
@@ -201,6 +270,8 @@ wieze = []
 
 castle = Castle()
 
+fale = WaveManagment()
+
 enemies = []
 enemy_spawn = 2000
 last_spawn = pygame.time.get_ticks()
@@ -211,7 +282,9 @@ wave_timer = pygame.time.get_ticks()
 wave_interval = 10000
 
 spawn_speedup_timer = pygame.time.get_ticks()
-spawn_speedup_interval = 15000 
+spawn_speedup_interval = 10000 
+
+kill_count = 0
 
 while True:
     for event in pygame.event.get():
@@ -219,13 +292,16 @@ while True:
             pygame.quit()
             exit()
     
-    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-        pozycja = pygame.mouse.get_pos()
-        pole = budowniczy.sprawdzanie(pozycja)
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+           pozycja = pygame.mouse.get_pos()
+           pole = budowniczy.sprawdzanie(pozycja)
 
-        if pole and player.portfel(Tower.CENA):
-            wieze.append(Tower(*pole))
-            player.zakup(Tower.CENA)
+           if pole and player.portfel():
+               zajete = any(wieza.rect.topleft == pole for wieza in wieze)
+               if not zajete: #upewnianie się ze pole jest wolne   
+                wieze.append(Tower(*pole))
+                player.zakup()
+            
 
     screen.blit(plansza, (0,0))
     screen.blit(trawa_1, (0,0))
@@ -234,17 +310,19 @@ while True:
     screen.blit(zamek, (300, 0))
 
     czas = pygame.time.get_ticks()
-    if spawned_enemies < max_enemies and czas - last_spawn >= enemy_spawn:
+
+    fale.update()
+
+    if fale.should_spawn():
         x = random.randint(20, 780)
         y = random.randint(500, 550)
 
-        fav_path = min(sciezki, key=lambda s:math.hypot(x - s[0][0], y - s[0][1]))
+        fav_path = min(sciezki, key=lambda s: math.hypot(x - s[0][0], y - s[0][1]))
 
-        level = (spawned_enemies // 10) + 1
-        new_enemy = Enemy(x, y, sciezka = fav_path, level=level)
+        level = fale.aktualna_fala
+        new_enemy = Enemy(x, y, sciezka=fav_path, level=level)
         enemies.append(new_enemy)
-        spawned_enemies += 1
-        last_spawn = czas
+        fale.rejestr()
 
     if czas - spawn_speedup_timer > spawn_speedup_interval:
         enemy_spawn = max(500, enemy_spawn - 200)  
@@ -268,13 +346,20 @@ while True:
         if enemy.zgon():
             enemies.remove(enemy)
             player.gold += 2
+            kill_count += 1
         elif enemy.path_index >= len(enemy.path):
             enemies.remove(enemy)
             castle.dmg(10)
     
     font = pygame.font.SysFont(None, 36)
     hp_text = font.render(f"Castle HP: {castle.hp}", True, (255, 0, 0))
+    gold_text = font.render(f"Gold: {player.gold}", True, (255, 255, 0))
+    fala_text = font.render(f"Fala: {fale.aktualna_fala}", True, (255, 255, 255))
+    kill_text = font.render(f"Zabici: {kill_count}", True, (255, 255, 255))
     screen.blit(hp_text, (10, 10))
+    screen.blit(gold_text, (10, 30))
+    screen.blit(fala_text, (700, 10))
+    screen.blit(kill_text, (660, 30))
 
     if castle.zniszczony():
         print("GAME OVER")
