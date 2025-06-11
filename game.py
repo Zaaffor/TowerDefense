@@ -2,6 +2,7 @@ import pygame
 import math
 import random
 from sys import exit
+from collections import deque
 
 pygame.init()
 screen = pygame.display.set_mode((800, 600))
@@ -44,6 +45,18 @@ enemy_image3 = pygame.transform.scale(enemy_image3, (60, 60))
 
 tower_image = pygame.image.load("images/wieza.png").convert_alpha()
 tower_image = pygame.transform.scale(tower_image, (50, 50))
+
+
+boss_image = pygame.image.load("images/boss.png").convert_alpha()
+boss_image = pygame.transform.scale(boss_image, (120, 120))
+
+bomb_icon = pygame.image.load("images/bomb.png").convert_alpha()
+bomb_icon = pygame.transform.scale(bomb_icon, (40, 40))
+
+explosion_img = pygame.image.load("images/wybuch.png").convert_alpha()
+explosion_img = pygame.transform.scale(explosion_img, (64, 64))
+
+#
 
 TARGET = (400, 50)
 
@@ -277,6 +290,38 @@ class Enemy:
         pygame.draw.rect(surface, (0, 255, 0), b_hp_rect)
 
 
+
+
+class Boss(Enemy):
+   #Duży przeciwnik boss z wiekszymHP i 2x wieksyzmi obrażeniami dla zamku
+    def __init__(self, x, y, sciezka, level=1):
+        super().__init__(x, y, hp=500 + level * 150, width=120, height=120,
+                         speed=0.6 + 0.1 * level, sciezka=sciezka, level=level)
+        self.image = boss_image
+
+    # obrazenia 20 a nie 10
+    def castle_hit_dmg(self):
+        return 20
+
+
+class Explosion:
+    LIFE = 300 
+
+    def __init__(self, pos):
+        self.x, self.y = pos
+        self.birth = pygame.time.get_ticks()
+
+    def draw(self, surf):
+        surf.blit(explosion_img, (self.x - 32, self.y - 32))
+
+    def dead(self):
+        return pygame.time.get_ticks() - self.birth > self.LIFE
+
+#
+
+
+
+
 class WaveManagment:
     def __init__(self):
         self.aktualna_fala = 1
@@ -295,7 +340,7 @@ class WaveManagment:
         teraz = pygame.time.get_ticks()
         if self.spawned >= self.enemies_to_spawn:
             if teraz - self.last_wave > self.przerwa:
-                self.next_wave = True
+                self.next_wave = True 
         if self.next_wave:
             self.aktualna_fala += 1
             self.enemies_to_spawn = self.enemy_count()
@@ -337,6 +382,18 @@ spawn_speedup_timer = pygame.time.get_ticks()
 spawn_speedup_interval = 10000
 kill_count = 0
 selected_tower = None
+
+
+# nowe 
+
+BOMBS_MAX     = 3
+BOMB_RADIUS   = 120  # zasięg obrażeń
+BOMB_DMG      = 150 # obrażenia w środku wybuchu
+bombs_left    = BOMBS_MAX
+bomb_cooldown = 5000   # ms czas między wybuchami
+last_bomb     = 0
+explosions    = deque()
+
 
 while True:
     for event in pygame.event.get():
@@ -390,6 +447,19 @@ while True:
                 selected_tower.selected = False
                 selected_tower = None
 
+         
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+            now = pygame.time.get_ticks()
+            if bombs_left > 0 and now - last_bomb >= bomb_cooldown:
+                bomb_pos = pygame.mouse.get_pos()
+                explosions.append(Explosion(bomb_pos))
+                bombs_left -= 1
+                last_bomb = now
+
+                for e in enemies[:]:
+                    if math.hypot(e.x - bomb_pos[0], e.y - bomb_pos[1]) <= BOMB_RADIUS:
+                        e.take_damage(BOMB_DMG)
+
     screen.blit(plansza, (0, 0))
     screen.blit(trawa_1, (0, 0))
     screen.blit(trawa_2, (600, 0))
@@ -398,6 +468,14 @@ while True:
 
     czas = pygame.time.get_ticks()
     fale.update()
+
+
+
+    if fale.aktualna_fala % 5 == 0 and not any(isinstance(e, Boss) for e in enemies):
+        bx, by = random.choice([(260, 550), (515, 550)])
+        enemies.append(Boss(bx, by, sciezka_1 if bx == 260 else sciezka_2, level=fale.aktualna_fala))
+
+#
 
     if fale.should_spawn():
         x = random.randint(20, 780)
@@ -420,6 +498,14 @@ while True:
         enemy.update()
         enemy.draw(screen)
 
+
+    for exp in list(explosions):
+        exp.draw(screen)
+        if exp.dead():
+            explosions.popleft()
+            #
+
+
     for wieza in wieze:
         wieza.attack(enemies)
         wieza.draw(screen)
@@ -429,9 +515,15 @@ while True:
             enemies.remove(enemy)
             player.gold += 2
             kill_count += 1
+      #  elif enemy.path_index >= len(enemy.path):
+      #      enemies.remove(enemy)
+      #      castle.dmg(10)
+
         elif enemy.path_index >= len(enemy.path):
-            enemies.remove(enemy)
-            castle.dmg(10)
+                enemies.remove(enemy)
+                dmg = enemy.castle_hit_dmg() if hasattr(enemy, "castle_hit_dmg") else 10
+                castle.dmg(dmg)
+                
 
     font = pygame.font.SysFont(None, 36)
     hp_text = font.render(f"Castle HP: {castle.hp}", True, (255, 0, 0))
@@ -442,6 +534,12 @@ while True:
     screen.blit(gold_text, (10, 30))
     screen.blit(fala_text, (700, 10))
     screen.blit(kill_text, (660, 30))
+
+     
+    screen.blit(bomb_icon, (10, 60))          
+    bombs_text = font.render(f"x {bombs_left}", True, (255, 255, 255))
+    screen.blit(bombs_text, (50, 62)) 
+
 
     if castle.zniszczony():
         print("GAME OVER")
